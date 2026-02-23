@@ -1,98 +1,82 @@
 # Wafarin-Care-backend
 Backend API for a hospital-grade Warfarin management platform—INR tracking, dose adjustment workflows, and secure provider–patient messaging with role-based access and audit logging.
-## System Flow (Backend) – Styled
+## System Flow (Backend)
 
 ```mermaid
-flowchart TB
+flowchart LR
 
-%% ===== Nodes =====
-client([Client Frontend])
-router[API Router]
+C[Client Request] --> G0((AND))
+G0 --> JWT[JWT Verify]
+JWT --> OK{Valid}
 
-authn{JWT Valid}
-authz{Role Allowed}
+OK -->|no| E1[401]
+OK -->|yes| R0((AND))
+R0 --> ROLE[Role Check]
+ROLE --> PERM{Allowed}
 
-r401[Unauthorized]
-r403[Forbidden]
+PERM -->|no| E2[403]
+PERM -->|yes| X0((OR))
 
-%% ===== Sections =====
-subgraph AUTH[Auth]
-  login[Login]
-  users[(users)]
-  staff[(hospital_staff)]
-  patient[(patients)]
-  token[Token and Profile]
-end
+%% Routes (เหมือนแตกแขนง Block 5/6/7 ในรูป)
+X0 --> A1[Auth API]
+X0 --> P1[Patients API]
+X0 --> I1[INR API]
+X0 --> M1[Medication API]
+X0 --> AP1[Appointment API]
+X0 --> S1[Safety API]
+X0 --> AN1[Analytics API]
+X0 --> N1[Notification API]
 
-subgraph CORE[Core APIs]
-  pats[Patients API]
-  inrsvc[INR API]
-  medsvc[Medication API]
-  apptsvc[Appointment API]
-  safesvc[Safety API]
-  anlsvc[Analytics API]
-end
+%% Auth
+A1 --> D1[(users)]
+A1 --> D2[(hospital_staff)]
+A1 --> D3[(patients)]
+A1 --> OUT1[Token and Profile]
 
-subgraph DATA[Database Tables]
-  inr[(inr_records)]
-  meds[(medication_logs)]
-  appt[(appointments)]
-  safe[(safety_items)]
-  noti[(notifications)]
-end
+%% Patients
+P1 --> D3
+P1 --> D4[(inr_records)]
+P1 --> OUT2[Patient Data]
 
-subgraph JOBS[Scheduler Jobs]
-  cron[Daily Jobs]
-  job1[Midnight Update Missed Meds]
-  job2[Morning Appointment Reminder]
-end
+%% INR with status and notify
+I1 --> D3
+I1 --> CALC[Calc INR Status]
+CALC --> D4
+CALC --> K0((OR))
+K0 -->|monitor| N2[Create Notification]
+K0 -->|danger| N2
+N2 --> D8[(notifications)]
+I1 --> OUT3[INR Result]
 
-subgraph NOTIF[Notifications]
-  notisvc[Notification Service]
-end
+%% Medication
+M1 --> D5[(medication_logs)]
+M1 --> OUT4[Medication Data]
 
-%% ===== Flow =====
-client --> router --> authn
-authn -->|no| r401
-authn -->|yes| authz
-authz -->|no| r403
-authz -->|yes| login
+%% Appointment
+AP1 --> D6[(appointments)]
+AP1 --> OUT5[Appointment Data]
 
-login --> users
-login --> staff
-login --> patient
-login --> token
+%% Safety
+S1 --> D7[(safety_items)]
+S1 --> OUT6[Safety Data]
 
-router --> pats --> patient
-pats --> inr
-pats --> token
+%% Analytics (อ่านหลายตาราง)
+AN1 --> Q0((AND))
+Q0 --> D3
+Q0 --> D4
+Q0 --> D5
+AN1 --> OUT7[Analytics Data]
 
-router --> inrsvc --> patient
-inrsvc --> inr
-inrsvc --> notisvc --> noti
+%% Notifications list
+N1 --> D8
+N1 --> OUT8[Notification List]
 
-router --> medsvc --> meds
-router --> apptsvc --> appt
-router --> safesvc --> safe
-router --> anlsvc --> patient
-anlsvc --> inr
-anlsvc --> meds
-
-cron --> job1 --> meds
-cron --> job2 --> appt
-job1 --> noti
-job2 --> noti
-
-%% ===== Styling =====
-classDef main fill:#0F6B3A,color:#ffffff,stroke:#0B4F2B,stroke-width:2px;
-classDef sub fill:#E8F5EC,color:#0F6B3A,stroke:#1E8449,stroke-width:1.5px;
-classDef db fill:#ffffff,color:#0F6B3A,stroke:#1E8449,stroke-width:2px;
-classDef warn fill:#FDEDEC,color:#922B21,stroke:#C0392B,stroke-width:2px;
-classDef job fill:#FEF9E7,color:#7D6608,stroke:#B7950B,stroke-width:2px;
-
-class router,login,notisvc main
-class AUTH,CORE,DATA,JOBS,NOTIF sub
-class users,staff,patient,inr,meds,appt,safe,noti db
-class r401,r403 warn
-class cron,job1,job2 job
+%% Cron jobs
+CR[Scheduler Jobs] --> J0((OR))
+J0 --> J1[Midnight Missed Update]
+J0 --> J2[Morning Appointment Reminder]
+J1 --> D5
+J2 --> D6
+J1 --> D8
+J2 --> D8
 ```
