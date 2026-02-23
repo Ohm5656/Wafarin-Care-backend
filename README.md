@@ -5,90 +5,54 @@ Backend API for a hospital-grade Warfarin management platform—INR tracking, do
 ```mermaid
 flowchart TB
 
-REQ([Client Request]) --> GW[API Gateway / Router]
+REQ([Client Request]) --> GW[API Router]
 
-GW --> AUTHN{JWT Token?}
-AUTHN -->|No| R401[401 Unauthorized]
-AUTHN -->|Yes| AUTHZ{Role Allowed?}
-AUTHZ -->|No| R403[403 Forbidden]
+GW --> AUTHN{JWT Valid}
+AUTHN -->|No| R401[Unauthorized]
+AUTHN -->|Yes| AUTHZ{Role Allowed}
+AUTHZ -->|No| R403[Forbidden]
 
-AUTHZ --> ROUTE{Which API?}
+AUTHZ --> ROUTE{Endpoint}
 
-%% =========================
-%% AUTH
-%% =========================
-ROUTE -->|/api/auth/*| AUTH[Auth Service]
-AUTH --> U[(users)]
-AUTH -->|Load profile| PROF{role?}
-PROF -->|hospital_staff| S[(hospital_staff)]
-PROF -->|patient| P[(patients)]
-AUTH --> RES_AUTH[Return token + user + profile]
+ROUTE --> AUTH[Auth Service]
+AUTH --> USERS[(users table)]
+AUTH --> PROFILE{Role}
+PROFILE --> STAFF[(hospital_staff)]
+PROFILE --> PATIENT[(patients)]
+AUTH --> RES_AUTH[Return Token and Profile]
 
-%% =========================
-%% PATIENTS
-%% =========================
-ROUTE -->|/api/patients*| PATMOD[Patients Service]
-PATMOD --> P
-PATMOD --> R[(inr_records)]
-PATMOD --> RES_PAT[Return patient(s) + latest INR/status]
+ROUTE --> PATMOD[Patients Service]
+PATMOD --> PATIENT
+PATMOD --> INR[(inr_records)]
+PATMOD --> RES_PAT[Return Patient Data]
 
-%% =========================
-%% INR RECORDS
-%% =========================
-ROUTE -->|/api/inr-records*| INRMOD[INR Service]
-INRMOD --> P
-INRMOD --> CALC[Calculate INR Status\nsafe/monitor/danger]
-CALC --> R
-CALC -->|monitor/danger| NOTI[Create Notification]
-NOTI --> N[(notifications)]
-INRMOD --> RES_INR[Return INR record + status]
+ROUTE --> INRMOD[INR Service]
+INRMOD --> PATIENT
+INRMOD --> CALC[Calculate INR Status]
+CALC --> INR
+CALC --> NOTI[Create Notification]
+NOTI --> NOTITBL[(notifications)]
+INRMOD --> RES_INR[Return INR Record]
 
-%% =========================
-%% MEDICATION LOGS
-%% =========================
-ROUTE -->|/api/medication-logs*| MEDMOD[Medication Service]
-MEDMOD --> M[(medication_logs)]
-MEDMOD --> RES_MED[Return schedule / confirm result]
+ROUTE --> MEDMOD[Medication Service]
+MEDMOD --> MED[(medication_logs)]
+MEDMOD --> RES_MED[Return Medication Data]
 
-%% =========================
-%% APPOINTMENTS
-%% =========================
-ROUTE -->|/api/appointments*| APMOD[Appointments Service]
-APMOD --> A[(appointments)]
-APMOD --> RES_APPT[Return appointments]
+ROUTE --> APMOD[Appointment Service]
+APMOD --> APPT[(appointments)]
+APMOD --> RES_APPT[Return Appointment Data]
 
-%% =========================
-%% SAFETY ITEMS (Public Search + Staff CRUD)
-%% =========================
-ROUTE -->|/api/safety-items*| SAFEMOD[Safety Service]
-SAFEMOD --> SF[(safety_items)]
-SAFEMOD --> RES_SAFE[Return safety items]
+ROUTE --> SAFEMOD[Safety Service]
+SAFEMOD --> SAFE[(safety_items)]
+SAFEMOD --> RES_SAFE[Return Safety Data]
 
-%% =========================
-%% ANALYTICS (Staff Only)
-%% =========================
-ROUTE -->|/api/analytics*| ANLMOD[Analytics Service]
-ANLMOD --> P
-ANLMOD --> R
-ANLMOD --> M
-ANLMOD --> RES_ANL[Return KPIs + charts data]
+ROUTE --> ANALYTICS[Analytics Service]
+ANALYTICS --> PATIENT
+ANALYTICS --> INR
+ANALYTICS --> MED
+ANALYTICS --> RES_ANL[Return Analytics Data]
 
-%% =========================
-%% NOTIFICATIONS (Polling / Optional Realtime)
-%% =========================
-ROUTE -->|/api/notifications*| NOTIMOD[Notifications Service]
-NOTIMOD --> N
-NOTIMOD --> RES_NOTI[Return notifications list]
-
-%% =========================
-%% CRON / SCHEDULER (Background Jobs)
-%% =========================
-CRON[Scheduler / Cron Jobs] --> C1[00:00 Update missed meds]
-C1 --> M
-C1 -->|Create reminder| N
-
-CRON --> C2[09:00 Appointment reminder (T-1 day)]
-C2 --> A
-C2 -->|Create reminder| N
-C2 -->|Mark reminder_sent=true| A
+CRON[Scheduler Jobs] --> MED
+CRON --> APPT
+CRON --> NOTITBL
 ```
